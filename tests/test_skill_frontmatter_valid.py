@@ -6,9 +6,12 @@ YAML mapping ("mapping values are not allowed here"), which breaks skill loading
 and the model-triggering description field. The version-parity check is a regex
 and did not catch it, so this validates the frontmatter as actual YAML.
 
-clawhub-upload/SKILL.md is gitignored and may be absent on a fresh clone; glob
+Discovery includes hidden adapter directories, which glob.glob skips.
+
+clawhub-upload/SKILL.md is gitignored and may be absent on a fresh clone; rglob
 simply does not find it then, which is fine.
 """
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -46,6 +49,31 @@ def _description_line(frontmatter):
 
 
 class SkillFrontmatterTests(unittest.TestCase):
+    def test_discovers_all_tracked_skills(self):
+        # Git supplies an independent inventory, including future adapters.
+        # Source archives still run the filesystem and fixture validations.
+        try:
+            top = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:
+            self.skipTest("Git is unavailable; source-archive checks still run")
+        if top.returncode != 0 or Path(top.stdout.strip()).resolve() != REPO_ROOT.resolve():
+            self.skipTest("No Git metadata for this source tree")
+        tracked = subprocess.check_output(
+            ["git", "ls-files", "-z", "*SKILL.md"],
+            cwd=REPO_ROOT,
+        )
+        expected = {REPO_ROOT / p for p in tracked.decode("utf-8").split("\0") if p}
+        self.assertTrue(expected, "Git returned no tracked SKILL.md files")
+        missing = expected - set(_skill_md_files())
+        self.assertFalse(missing, f"tracked SKILL.md files not discovered: {sorted(missing)}")
+
     def test_files_found(self):
         files = _skill_md_files()
         self.assertTrue(files, "no SKILL.md files discovered")
@@ -115,7 +143,7 @@ class SkillFrontmatterTests(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_root = Path(tmpdir)
+            tmp_root = Path(tmpdir).resolve()
 
             # Hidden valid skill
             hidden_valid = tmp_root / ".agents" / "skills" / "planning-with-files" / "SKILL.md"
