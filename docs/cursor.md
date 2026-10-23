@@ -6,20 +6,81 @@ How to use planning-with-files with Cursor IDE — now with full hook support.
 
 ## Installation
 
-### Option 1: Copy .cursor directory (Recommended)
+### Option 1: Copy into .cursor (Recommended)
+
+Run from your project root:
 
 ```bash
 git clone https://github.com/OthmanAdi/planning-with-files.git
-cp -r planning-with-files/.cursor .cursor
+mkdir -p .cursor/skills
+cp -r planning-with-files/.cursor/skills/planning-with-files .cursor/skills/
+cp -r planning-with-files/.cursor/hooks .cursor/
+cp planning-with-files/.cursor/hooks.windows.json .cursor/
+if [ -e .cursor/hooks.json ]; then
+  echo "Kept the existing .cursor/hooks.json. Merge the planning-with-files entries into it."
+else
+  cp planning-with-files/.cursor/hooks.json .cursor/
+fi
 ```
 
-This copies the skill files, hooks config, and hook scripts to your project.
+This copies the skill files, hook scripts, and hooks config to your project. It
+works whether or not the project already has a `.cursor` directory. The skill
+lands in `.cursor/skills/planning-with-files/` and the scripts in
+`.cursor/hooks/`, next to any rules, skills, and hooks you already have. Do not
+use `cp -r planning-with-files/.cursor .cursor`. When `.cursor` already exists,
+`cp` copies into it and creates `.cursor/.cursor/`, where Cursor does not look.
+
+The commands never overwrite an existing `hooks.json`. If they printed the
+"Kept the existing" message, merge the entries as described in
+[Existing hooks.json](#existing-hooksjson). A script of yours in `.cursor/hooks/`
+with the same name as one of ours (for example `stop.sh`) is overwritten, so
+rename it first.
 
 ### Option 2: Manual setup
 
-1. Copy `.cursor/skills/planning-with-files/` to your project
-2. Copy `.cursor/hooks.json` to your project
-3. Copy `.cursor/hooks/` directory to your project
+1. Copy `.cursor/skills/planning-with-files/` to `.cursor/skills/planning-with-files/` in your project
+2. Copy `.cursor/hooks.json` to `.cursor/hooks.json`, or merge it into an existing one (see below)
+3. Copy the files in `.cursor/hooks/` to `.cursor/hooks/`
+
+### Existing hooks.json
+
+If your project already has `.cursor/hooks.json`, keep it and add the
+planning-with-files registrations to it:
+
+1. For each event in `planning-with-files/.cursor/hooks.json` (`sessionStart`,
+   `preToolUse`, `postToolUse`, `stop`), append its entry to the array with the
+   same name in your file. Create the array if your file has no such event.
+2. Leave your existing entries, other events, and `"version": 1` as they are.
+
+For example, a project that already registered an `afterFileEdit` hook and its
+own `stop` hook ends up with:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      { "command": ".cursor/hooks/format.sh" }
+    ],
+    "sessionStart": [
+      { "command": ".cursor/hooks/session-start.sh", "timeout": 5 }
+    ],
+    "preToolUse": [
+      { "command": ".cursor/hooks/pre-tool-use.sh", "matcher": "Write|Edit|Shell|Read", "timeout": 5 }
+    ],
+    "postToolUse": [
+      { "command": ".cursor/hooks/post-tool-use.sh", "matcher": "Write|Edit", "timeout": 5 }
+    ],
+    "stop": [
+      { "command": ".cursor/hooks/notify.sh" },
+      { "command": ".cursor/hooks/stop.sh", "timeout": 10, "loop_limit": 3 }
+    ]
+  }
+}
+```
+
+If the four entries are already there from an earlier install, there is nothing
+to merge.
 
 ---
 
@@ -119,6 +180,11 @@ Rename-Item .cursor\hooks.windows.json hooks.json
 ```
 
 The `.cursor/hooks.windows.json` file uses PowerShell to execute the `.ps1` hook scripts directly.
+
+If you merged the entries into an existing `hooks.json`, do not rename the files,
+because that would drop your own hooks. Replace the four planning-with-files
+entries in your `hooks.json` with the matching entries from
+`.cursor/hooks.windows.json` instead.
 
 ---
 
