@@ -1,0 +1,33 @@
+name: bench-356
+on: [push, workflow_dispatch]
+jobs:
+  bench:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Time the JSON listing, before and after
+        run: |
+          set -eu
+          repo=$PWD
+          cp scripts/resolve-plan-dir.sh bench/old/
+          work=$(mktemp -d); cd "$work"
+          printf '### Phase 1: Root\n**Status:** in_progress\n' > task_plan.md
+          for i in $(seq 1 20); do
+            d=.planning/plan-$i; mkdir -p "$d"
+            printf '### Phase 1: W\n**Status:** complete\n### Phase 2: X\n**Status:** in_progress\n' > "$d/task_plan.md"
+            echo f > "$d/findings.md"; echo p > "$d/progress.md"
+          done
+          sh --version | head -1
+          TIMEFORMAT='%R s'
+          for v in old new; do
+            if [ $v = old ]; then s=$repo/bench/old/set-active-plan.sh; else s=$repo/scripts/set-active-plan.sh; fi
+            for run in 1 2 3; do
+              echo "$v --list --json --limit 100, run $run:"; time sh "$s" --list --json --limit 100 > "$v.json"
+            done
+            echo "$v --list:"; time sh "$s" --list > "$v.txt"
+          done
+          cmp old.json new.json && cmp old.txt new.txt && echo "outputs byte-identical"
+          python -c "import json;d=json.load(open('new.json'));print(len(d['candidates']),'candidates', d['limits'])"
